@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>График смен охраны</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        #auth { margin-bottom: 30px; }
+        .hidden { display: none; }
+        .tab { padding: 10px; cursor: pointer; background: #ddd; }
+        .active { background: #bbb; }
+        #app { border: 1px solid #ccc; padding: 20px; }
+    </style>
+</head>
+<body>
+    <h1>🗓️ График смен охраны</h1>
+
+    <div id="auth">
+        <h3>Вход / Регистрация</h3>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Пароль">
+        <button onclick="signIn()">Войти</button>
+        <button onclick="signUp()">Зарегистрироваться</button>
+        <p id="auth-message"></p>
+    </div>
+
+    <div id="app" class="hidden">
+        <p>Вы вошли как: <span id="user-email"></span> (<span id="user-role"></span>)</p>
+        <button onclick="signOut()">Выйти</button>
+
+        <div style="margin-top: 20px;">
+            <div class="tab active" onclick="showTab('calendar')">Мои смены</div>
+            <div class="tab" onclick="showTab('schedule')">Расписание</div>
+            <div class="tab" onclick="showTab('payouts')">Выплаты</div>
+            <div class="tab" onclick="showTab('admin')" id="admin-tab" style="display:none;">Управление (Старший)</div>
+        </div>
+
+        <div id="tab-content">
+            <!-- Сюда будет подгружаться содержимое вкладок -->
+            <div id="calendar-tab">
+                <h3>Мои смены</h3>
+                <ul id="my-shifts"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Конфигурация Supabase (значения получишь на следующем шаге)
+        const supabaseUrl = 'https://your-project-id.supabase.co';
+        const supabaseAnonKey = 'your-anon-key';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+        // Проверяем, авторизован ли пользователь
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                showApp(session.user);
+            }
+        });
+
+        // Функции входа/регистрации
+        async function signIn() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) alert('Ошибка входа: ' + error.message);
+        }
+
+        async function signUp() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) alert('Ошибка регистрации: ' + error.message);
+            else alert('Регистрация успешна! Проверь почту.');
+        }
+
+        async function signOut() {
+            await supabase.auth.signOut();
+            location.reload();
+        }
+
+        // Показываем основное приложение
+        function showApp(user) {
+            document.getElementById('auth').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            document.getElementById('user-email').textContent = user.email;
+            // Здесь мы позже узнаем роль пользователя
+            loadUserProfile(user.id);
+        }
+
+        // Загружаем профиль пользователя (чтобы узнать роль)
+        async function loadUserProfile(userId) {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', userId)
+                .single();
+
+            if (data) {
+                document.getElementById('user-role').textContent = data.role === 'senior' ? 'Старший смены' : 'Охранник';
+                if (data.role === 'senior') {
+                    document.getElementById('admin-tab').style.display = 'inline-block';
+                }
+                // Загружаем данные для вкладок
+                loadMyShifts();
+            }
+        }
+
+        // Загружаем смены пользователя
+        async function loadMyShifts() {
+            const { data, error } = await supabase
+                .from('shifts')
+                .select('*')
+                .order('date', { ascending: true });
+
+            const list = document.getElementById('my-shifts');
+            list.innerHTML = '';
+            if (data) {
+                data.forEach(shift => {
+                    const li = document.createElement('li');
+                    li.textContent = `${shift.date} с ${shift.start_time} до ${shift.end_time}`;
+                    list.appendChild(li);
+                });
+            }
+        }
+
+        // Переключение вкладок
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            // Здесь будет логика загрузки разных вкладок
+            alert('Вкладка "' + tabName + '" в разработке!');
+        }
+
+        // Слушаем изменения авторизации
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session) showApp(session.user);
+        });
+    </script>
+</body>
+</html>
